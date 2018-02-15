@@ -3,7 +3,16 @@
 require 'twitter'
 require 'dotenv/load'
 
-filename = 'data.yml'
+if ARGV.any?
+  if ARGV.length != 2
+    raise StandardError, 'Usage : ./twitterBot.rb [twitter_account] [pattern]'
+  end
+end
+
+tw_account = ARGV[0].nil? ? 'TBM_TramB' : ARGV[0]
+pattern = ARGV[1].nil? ? 'interrompu' : ARGV[1]
+filename = "#{tw_account}.data"
+query = "from:#{tw_account} #{pattern}"
 
 unless File.readable?(filename)
   File.open(filename, 'w') do |f|
@@ -25,16 +34,11 @@ client = Twitter::REST::Client.new do |config|
   config.access_token_secret = ENV['access_token_secret']
 end
 
-tw_account = ENV['seeked_account'].nil? ? ENV['seeked_account'] : 'TBM_TramB'
-pattern = ENV['pattern'].nil? ? ENV['pattern'] : 'interrompu'
-
 options = if tweet_id.nil?
             { result_type: 'recent' }
           else
             { result_type: 'recent', since_id: tweet_id }
           end
-
-query = "from:#{tw_account} #{pattern}"
 
 is_interrupted = false
 client.search(query, options).collect.reverse_each do |tweet|
@@ -47,9 +51,10 @@ end
 latest_interruption_tweet = client.status(tweet_id)
 tweet_date = Date.parse(latest_interruption_tweet.created_at.to_s)
 date_diff = (Date.today - tweet_date).to_i
-message = "#TBMTram B : #{date_diff} jour(s) sans interruption. "
+message = "#TBMTram #{tw_account} : #{date_diff} jour(s) sans interruption. "
 
+puts "#{message} #{message.length}"
+puts "Latest tweet_id : #{tweet_id}"
+File.open(filename, 'w') { |file| file.write(tweet_id) }
 # If there is an interruption, put tweet url at the end to make a quoted tweet
 client.update(message + (is_interrupted ? latest_interruption_tweet.uri : ''))
-File.open(filename, 'w') { |file| file.write(tweet_id) }
-puts message
