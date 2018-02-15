@@ -2,7 +2,6 @@
 
 require 'twitter'
 require 'dotenv/load'
-require 'yaml'
 
 filename = 'data.yml'
 
@@ -12,7 +11,11 @@ unless File.readable?(filename)
   end
 end
 
-data = YAML.load_file(filename)
+data = nil
+File.open(filename, 'r') do |file|
+  data = file.gets
+end
+
 tweet_id = !data ? nil : data
 
 client = Twitter::REST::Client.new do |config|
@@ -33,9 +36,9 @@ options = if tweet_id.nil?
 
 query = "from:#{tw_account} #{pattern}"
 
-has_been_interrupted = false
+is_interrupted = false
 client.search(query, options).collect.reverse_each do |tweet|
-  has_been_interrupted = true
+  is_interrupted = true
   tweet_id = tweet.id
   puts "#{tweet.text} #{tweet.created_at} #{tweet.id}"
   client.favorite(tweet.id)
@@ -43,17 +46,10 @@ end
 
 latest_interruption_tweet = client.status(tweet_id)
 tweet_date = Date.parse(latest_interruption_tweet.created_at.to_s)
-date_diff = (tweet_date - Date.today).to_i
+date_diff = (Date.today - tweet_date).to_i
 message = "#TBMTram B : #{date_diff} jour(s) sans interruption. "
 
 # If there is an interruption, put tweet url at the end to make a quoted tweet
-if has_been_interrupted
-  client.update(message + latest_interruption_tweet.uri)
-else
-  client.update(message)
-end
-
-File.open(filename, 'w') do |f|
-  f.write tweet_id.to_yaml
-end
+client.update(message + (is_interrupted ? latest_interruption_tweet.uri : ''))
+File.open(filename, 'w') { |file| file.write(tweet_id) }
 puts message
